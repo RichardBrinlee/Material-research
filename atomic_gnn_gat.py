@@ -9,6 +9,8 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
 from sklearn.metrics.pairwise import euclidean_distances
 from torch_geometric.nn import GATConv
+import os
+from sklearn.metrics import r2_score
 
 # Define the Graph Neural Network
 class GraphNeuralNetwork(nn.Module):
@@ -61,7 +63,8 @@ class GraphAttentionNetwork(nn.Module):
 
 if __name__ == "__main__":
     # Load data
-    data = pd.read_csv('atomic.csv')
+    data_path = os.path.join(os.path.dirname(__file__), 'atomic.csv')
+    data = pd.read_csv(data_path)
 
     # Define elements
     elements = ['Mo', 'Nb', 'Ta', 'W', 'V']
@@ -223,16 +226,24 @@ if __name__ == "__main__":
         mse_loss = (avg_loss_usfe, avg_loss_lattice)
         print(f'Mean Squared Error with L2 Regularization: {mse_loss}')
 
-    # Print predictions and actual values
+    # Prepare predictions and actuals for R^2 and further analysis
     predictions = torch.cat(predictions, dim=0)
     actuals = torch.cat([batch.y for batch in test_loader], dim=0)
+    actuals_np = scaler_y.inverse_transform(actuals.detach().numpy())
+    predictions_np = scaler_y.inverse_transform(predictions.detach().numpy())
+
+    # Calculate R^2 values for USFE and Lattice Parameter
+    r2_usfe = r2_score(actuals_np[:, 0], predictions_np[:, 0])
+    r2_lattice = r2_score(actuals_np[:, 1], predictions_np[:, 1])
+    print(f'R^2 Score USFE: {r2_usfe:.4f}')
+    print(f'R^2 Score Lattice Parameter: {r2_lattice:.4f}')
+
+    # Print predictions and actual values
     print("Predictions (first 5 rows):\n", scaler_y.inverse_transform(predictions[:5].detach().numpy()))
     print("Actual Values (first 5 rows):\n", scaler_y.inverse_transform(actuals[:5].detach().numpy()))
 
     # Save to CSV with Element_Combination and Percent Difference
     element_combinations = data['Element_Combination'].iloc[test_idx].reset_index(drop=True)
-    actuals_np = scaler_y.inverse_transform(actuals.detach().numpy())
-    predictions_np = scaler_y.inverse_transform(predictions.detach().numpy())
 
     percent_diff_usfe = 100 * abs(predictions_np[:, 0] - actuals_np[:, 0]) / actuals_np[:, 0]
     percent_diff_lattice = 100 * abs(predictions_np[:, 1] - actuals_np[:, 1]) / actuals_np[:, 1]
@@ -275,24 +286,57 @@ if __name__ == "__main__":
 
     # Visualize predictions vs actual values
     plt.figure(figsize=(12, 6))
-
     # USFE
     plt.subplot(1, 2, 1)
-    plt.scatter(test_data_df['USFE'], test_data_df['Predicted_USFE'], alpha=0.5, label='Predicted', color='red')
-    plt.plot(test_data_df['USFE'], test_data_df['USFE'], label='Actual', color='blue')  # Line for actual values
-    plt.xlabel('Actual USFE')
-    plt.ylabel('Predicted USFE')
-    plt.title('USFE: Actual vs Predicted')
-    plt.legend()
+    plt.scatter(
+        test_data_df['USFE'], test_data_df['Predicted_USFE'],
+        alpha=0.5, label='Predicted', color='red', s=40
+    )
+    plt.plot(
+        test_data_df['USFE'], test_data_df['USFE'],
+        color='blue', linewidth=2
+    )  # Line for actual values
+    plt.xlabel('Actual USFE (mJ/m²)', fontsize=16)
+    plt.ylabel('Predicted USFE (mJ/m²)', fontsize=16)
+    plt.title('USFE: Actual vs Predicted', fontsize=18)
+    plt.legend(fontsize=14)
+    # Display R^2 score on the plot
+    plt.text(
+        0.05, 0.85,
+        f'$R^2$ = {r2_usfe:.4f}',
+        transform=plt.gca().transAxes,
+        fontsize=16,
+        verticalalignment='top',
+        bbox=dict(boxstyle='round', facecolor='white', alpha=0.7)
+    )
+    plt.xticks(fontsize=14)
+    plt.yticks(fontsize=14)
 
     # Lattice Parameter
     plt.subplot(1, 2, 2)
-    plt.scatter(test_data_df['Lattice_Parameter'], test_data_df['Predicted_Lattice_Parameter'], alpha=0.5, label='Predicted', color='red')
-    plt.plot(test_data_df['Lattice_Parameter'], test_data_df['Lattice_Parameter'], label='Actual', color='blue')  # Line for actual values
-    plt.xlabel('Actual Lattice Parameter')
-    plt.ylabel('Predicted Lattice Parameter')
-    plt.title('Lattice Parameter: Actual vs Predicted')
-    plt.legend()
+    plt.scatter(
+        test_data_df['Lattice_Parameter'], test_data_df['Predicted_Lattice_Parameter'],
+        alpha=0.5, label='Predicted', color='red', s=40
+    )
+    plt.plot(
+        test_data_df['Lattice_Parameter'], test_data_df['Lattice_Parameter'],
+        color='blue', linewidth=2
+    )  # Line for actual values
+    plt.xlabel('Actual Lattice Parameter (Å)', fontsize=16)
+    plt.ylabel('Predicted Lattice Parameter (Å)', fontsize=16)
+    plt.title('Lattice Parameter: Actual vs Predicted', fontsize=18)
+    plt.legend(fontsize=14)
+    # Display R^2 score on the plot
+    plt.text(
+        0.05, 0.85,
+        f'$R^2$ = {r2_lattice:.4f}',
+        transform=plt.gca().transAxes,
+        fontsize=16,
+        verticalalignment='top',
+        bbox=dict(boxstyle='round', facecolor='white', alpha=0.7)
+    )
+    plt.xticks(fontsize=14)
+    plt.yticks(fontsize=14)
 
     plt.tight_layout()
     plt.show()
