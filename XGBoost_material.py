@@ -5,6 +5,7 @@ from matminer.featurizers.conversions import StrToComposition
 from matminer.featurizers.composition import ElementProperty
 import os
 import xgboost as xgb
+from sklearn.metrics import r2_score
 import matplotlib.pyplot as plt
 
 def main():
@@ -88,12 +89,71 @@ def main():
     epochs = len(evals_result['train']['rmse'])
     x_axis = range(0, epochs)
     
-    fig, ax = plt.subplots()
-    ax.plot(x_axis[-60:], evals_result['train']['rmse'][-60:], label='Train')
-    ax.plot(x_axis[-60:], evals_result['eval']['rmse'][-60:], label='Test')
-    ax.legend()
-    plt.ylabel('RMSE')
-    plt.title('XGBoost RMSE (Last 60 Epochs)')
+    # Prepare data for visualization
+    # y_pred is (n_samples, 2), y_test is a DataFrame with columns ['USFE', 'Lattice_Parameter']
+    test_data_df = pd.DataFrame({
+        'USFE': y_test['USFE'].values,
+        'Predicted_USFE': y_pred[:, 0],
+        'Lattice_Parameter': y_test['Lattice_Parameter'].values,
+        'Predicted_Lattice_Parameter': y_pred[:, 1]
+    })
+
+    # Calculate R^2 scores
+    r2_usfe = r2_score(test_data_df['USFE'], test_data_df['Predicted_USFE'])
+    r2_lattice = r2_score(test_data_df['Lattice_Parameter'], test_data_df['Predicted_Lattice_Parameter'])
+
+    plt.figure(figsize=(12, 6))
+    # USFE
+    plt.subplot(1, 2, 1)
+    plt.scatter(
+        test_data_df['USFE'], test_data_df['Predicted_USFE'],
+        alpha=0.5, label='Predicted', color='red', s=40
+    )
+    plt.plot(
+        test_data_df['USFE'], test_data_df['USFE'],
+        color='blue', linewidth=2
+    )  # Line for actual values
+    plt.xlabel('Actual USFE (mJ/m²)', fontsize=16)
+    plt.ylabel('Predicted USFE (mJ/m²)', fontsize=16)
+    plt.title('USFE: Actual vs Predicted', fontsize=18)
+    plt.legend(fontsize=14)
+    plt.text(
+        0.05, 0.85,
+        f'$R^2$ = {r2_usfe:.4f}',
+        transform=plt.gca().transAxes,
+        fontsize=16,
+        verticalalignment='top',
+        bbox=dict(boxstyle='round', facecolor='white', alpha=0.7)
+    )
+    plt.xticks(fontsize=14)
+    plt.yticks(fontsize=14)
+
+    # Lattice Parameter
+    plt.subplot(1, 2, 2)
+    plt.scatter(
+        test_data_df['Lattice_Parameter'], test_data_df['Predicted_Lattice_Parameter'],
+        alpha=0.5, label='Predicted', color='red', s=40
+    )
+    plt.plot(
+        test_data_df['Lattice_Parameter'], test_data_df['Lattice_Parameter'],
+        color='blue', linewidth=2
+    )  # Line for actual values
+    plt.xlabel('Actual Lattice Parameter (Å)', fontsize=16)
+    plt.ylabel('Predicted Lattice Parameter (Å)', fontsize=16)
+    plt.title('Lattice Parameter: Actual vs Predicted', fontsize=18)
+    plt.legend(fontsize=14)
+    plt.text(
+        0.05, 0.85,
+        f'$R^2$ = {r2_lattice:.4f}',
+        transform=plt.gca().transAxes,
+        fontsize=16,
+        verticalalignment='top',
+        bbox=dict(boxstyle='round', facecolor='white', alpha=0.7)
+    )
+    plt.xticks(fontsize=14)
+    plt.yticks(fontsize=14)
+
+    plt.tight_layout()
     plt.show()
 
 if __name__ == '__main__':
